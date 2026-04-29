@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>純 HTML 任務管理系統 - V2 版</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        orange: {
+                            50: '#fff7ed',
+                            100: '#ffedd5',
+                            500: '#f97316',
+                            600: '#ea580c',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .done-item { filter: grayscale(0.9); opacity: 0.6; }
+        .strikethrough { text-decoration: line-through; color: #94a3b8; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-zinc-50 min-h-screen text-zinc-900 selection:bg-orange-500/30">
+
+    <div class="max-w-2xl mx-auto px-4 py-12">
+        <!-- Header & Stats Dashboard -->
+        <header class="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div>
+                <h1 class="text-3xl font-bold tracking-tight text-zinc-900 flex items-center gap-2">
+                    <span class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white text-lg">✓</span>
+                    極簡任務管理 <span class="text-sm font-normal text-zinc-400 ml-2">Simple HTML v2</span>
+                </h1>
+                <p class="text-zinc-500 mt-1">本地持久化存儲版本 (LocalStorage)</p>
+            </div>
+            
+            <div id="stats-panel" class="text-[11px] font-mono text-zinc-400 bg-white px-3 py-2 rounded-xl shadow-sm border border-zinc-100 flex gap-3">
+                <!-- Stats will be injected here -->
+            </div>
+        </header>
+
+        <!-- Input Area -->
+        <div class="bg-white p-2 rounded-2xl shadow-sm border border-zinc-100 flex gap-2 mb-8 ring-offset-2 focus-within:ring-2 focus-within:ring-orange-500 transition-all">
+            <input 
+                type="text" 
+                id="task-input" 
+                placeholder="你想完成什麼？" 
+                class="flex-1 px-4 py-3 outline-none text-zinc-700 bg-transparent"
+            >
+            <button 
+                onclick="handleAddTask()"
+                class="bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 py-2 rounded-xl transition-colors shadow-lg shadow-orange-500/20"
+            >
+                添加
+            </button>
+        </div>
+
+        <!-- Filters -->
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex gap-1 overflow-x-auto no-scrollbar py-1">
+                <button onclick="setFilter('all')" id="btn-filter-all" class="filter-btn px-4 py-1.5 rounded-full text-xs font-bold transition-all bg-zinc-800 text-white">全部</button>
+                <button onclick="setFilter('active')" id="btn-filter-active" class="filter-btn px-4 py-1.5 rounded-full text-xs font-bold transition-all bg-white text-zinc-500 border border-zinc-100 hover:border-orange-200">進行中</button>
+                <button onclick="setFilter('done')" id="btn-filter-done" class="filter-btn px-4 py-1.5 rounded-full text-xs font-bold transition-all bg-white text-zinc-500 border border-zinc-100 hover:border-orange-200">已完成</button>
+            </div>
+            <span class="text-[10px] text-zinc-300 font-medium uppercase tracking-widest">List View</span>
+        </div>
+
+        <!-- Task List Container -->
+        <div id="task-list" class="space-y-3">
+            <!-- Items injected here -->
+        </div>
+    </div>
+
+    <script>
+        // --- 核心變量 ---
+        let currentFilter = 'all';
+        const STORAGE_KEY = 'records';
+
+        // --- Rule 6a: saveData (newRecord) ---
+        function saveData(newRecord) {
+            const records = loadData();
+            records.push(newRecord);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+            renderList();
+        }
+
+        // --- Rule 6b: loadData() ---
+        function loadData() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            return data ? JSON.parse(data) : [];
+        }
+
+        // --- Rule 4: ID 生成器 ---
+        function generateId() {
+            return Date.now() + "_" + Math.random().toString(36).slice(2, 6);
+        }
+
+        // --- 業務邏輯: 新增任務 ---
+        function handleAddTask() {
+            const input = document.getElementById('task-input');
+            const title = input.value.trim();
+            if (!title) return;
+
+            const newRecord = {
+                id: generateId(),
+                createdAt: new Date().toISOString(),
+                title: title,
+                status: 'active' // Rule 4: 預設 active
+            };
+
+            saveData(newRecord);
+            input.value = '';
+        }
+
+        // --- 業務邏輯: 切換狀態 (Rule 4 status toggle) ---
+        function toggleStatus(id) {
+            const records = loadData();
+            const updated = records.map(r => {
+                if (r.id === id) {
+                    return { ...r, status: r.status === 'active' ? 'done' : 'active' };
+                }
+                return r;
+            });
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            renderList();
+        }
+
+        // --- 業務邏輯: 刪除 ---
+        function deleteRecord(id) {
+            const records = loadData();
+            const filtered = records.filter(r => r.id !== id);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+            renderList();
+        }
+
+        // --- 篩選控制 ---
+        function setFilter(type) {
+            currentFilter = type;
+            // 更新 UI
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('bg-zinc-800', 'bg-orange-500', 'bg-zinc-500', 'text-white');
+                btn.classList.add('bg-white', 'text-zinc-500', 'border', 'border-zinc-100');
+            });
+            
+            const activeBtn = document.getElementById(`btn-filter-${type}`);
+            activeBtn.classList.remove('bg-white', 'text-zinc-500', 'border');
+            if (type === 'all') activeBtn.classList.add('bg-zinc-800', 'text-white');
+            if (type === 'active') activeBtn.classList.add('bg-orange-500', 'text-white');
+            if (type === 'done') activeBtn.classList.add('bg-zinc-500', 'text-white');
+
+            renderList();
+        }
+
+        // --- Rule 6c: renderList() ---
+        function renderList() {
+            const listContainer = document.getElementById('task-list');
+            const statsContainer = document.getElementById('stats-panel');
+            const allRecords = loadData();
+
+            // 1. 計算統計 (Stretch 統計功能)
+            const total = allRecords.length;
+            const done = allRecords.filter(r => r.status === 'done').length;
+            const active = total - done;
+
+            statsContainer.innerHTML = `
+                <span>ACTIVE: <b class="text-orange-500">${active}</b></span>
+                <span class="text-zinc-200">|</span>
+                <span>DONE: <b class="text-zinc-500">${done}</b></span>
+                <span class="text-zinc-200">|</span>
+                <span>TOTAL: <b class="text-zinc-800">${total}</b></span>
+            `;
+
+            // 2. 篩選與排序 (Rule 2 & Status Sorting)
+            let displayList = allRecords;
+            if (currentFilter !== 'all') {
+                displayList = allRecords.filter(r => r.status === currentFilter);
+            }
+
+            // 排序: active 在上 (0), done 在下 (1)
+            displayList.sort((a, b) => {
+                const aVal = a.status === 'done' ? 1 : 0;
+                const bVal = b.status === 'done' ? 1 : 0;
+                return aVal - bVal;
+            });
+
+            // 3. 渲染 HTML
+            listContainer.innerHTML = displayList.length === 0 
+                ? '<div class="py-20 text-center text-zinc-300 text-sm italic">目前沒有任何項目...</div>'
+                : displayList.map(item => `
+                    <div class="group bg-white p-4 rounded-2xl border border-zinc-100 shadow-sm flex items-center gap-4 transition-all hover:shadow-md ${item.status === 'done' ? 'done-item' : ''}">
+                        <button onclick="toggleStatus('${item.id}')" class="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${item.status === 'done' ? 'bg-green-500 border-green-500 text-white' : 'border-zinc-200 hover:border-orange-500'}">
+                            ${item.status === 'done' ? '✓' : ''}
+                        </button>
+                        
+                        <div class="flex-1 min-w-0">
+                            <h3 class="font-semibold truncate text-zinc-700 ${item.status === 'done' ? 'strikethrough' : ''}">${item.title}</h3>
+                            <p class="text-[9px] text-zinc-400 mt-0.5 uppercase tracking-tighter">${new Date(item.createdAt).toLocaleString()}</p>
+                        </div>
+
+                        <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onclick="toggleStatus('${item.id}')" class="text-[10px] font-bold text-orange-500 bg-orange-50 px-2 py-1 rounded-lg">
+                                ${item.status === 'done' ? '恢復' : '完成'}
+                            </button>
+                            <button onclick="deleteRecord('${item.id}')" class="text-[10px] font-bold text-red-400 hover:text-red-500 px-2 py-1">
+                                刪除
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+        }
+
+        // 初始渲染
+        window.onload = renderList;
+
+        // 監控 Enter 鍵
+        document.getElementById('task-input').onkeydown = (e) => {
+            if (e.key === 'Enter') handleAddTask();
+        };
+    </script>
+</body>
+</html>

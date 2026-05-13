@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>純 HTML 任務管理系統 - V2 版</title>
+    <title>純 HTML 任務管理系統 - V2 版 (Google Sheet 同步版)</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -41,7 +41,7 @@
                     <span class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white text-lg">✓</span>
                     極簡任務管理 <span class="text-sm font-normal text-zinc-400 ml-2">Simple HTML v2</span>
                 </h1>
-                <p class="text-zinc-500 mt-1">本地持久化存儲版本 (LocalStorage)</p>
+                <p class="text-zinc-500 mt-1">本地持久化存儲版本 + Google Sheet 雲端備份</p>
             </div>
             
             <div id="stats-panel" class="text-[11px] font-mono text-zinc-400 bg-white px-3 py-2 rounded-xl shadow-sm border border-zinc-100 flex gap-3">
@@ -82,71 +82,155 @@
     </div>
 
     <script>
-        // --- 核心變量 ---
+        // ==================== 組態區 ====================
         let currentFilter = 'all';
         const STORAGE_KEY = 'records';
-
-        // --- Rule 6a: saveData (newRecord) ---
-        function saveData(newRecord) {
-            const records = loadData();
-            records.push(newRecord);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+        
+        // ⚠️ 重要：請將下方的 URL 換成您部署 Google Apps Script 後取得的網頁應用程式 URL
+        const APPS_SCRIPT_URL = "PASTE_YOUR_APPS_SCRIPT_URL_HERE"; // <-- 請貼上您的 Web App URL
+        
+        // ==================== Google Sheet 同步 Helper ====================
+        async function syncToSheet(payload) {
+            // 如果 URL 還是 placeholder，就不要送出
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "PASTE_YOUR_APPS_SCRIPT_URL_HERE") {
+                console.warn("⚠️ Google Sheet URL 尚未設定，跳過同步");
+                return;
+            }
+            
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain" },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                console.log("✅ Google Sheet 同步成功:", result);
+            } catch(error) {
+                console.warn("⚠️ Google Sheet 同步失敗 (不影響本機操作):", error);
+            }
+        }
+        
+        // ==================== 核心變量與函數 ====================
+        
+        // 從雲端載入所有資料 (用於初次載入或手動還原)
+        async function loadFromCloud() {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "PASTE_YOUR_APPS_SCRIPT_URL_HERE") {
+                console.warn("⚠️ Google Sheet URL 尚未設定，無法從雲端載入");
+                return null;
+            }
+            
+            try {
+                const response = await fetch(APPS_SCRIPT_URL);
+                const result = await response.json();
+                if (result.status === "success" && result.records) {
+                    return result.records;
+                }
+                return null;
+            } catch(error) {
+                console.warn("⚠️ 從 Google Sheet 載入失敗:", error);
+                return null;
+            }
+        }
+        
+        // 初次載入時，若本地無資料則嘗試從雲端載入
+        async function initializeData() {
+            let localData = loadData();
+            
+            if (localData.length === 0) {
+                const cloudData = await loadFromCloud();
+                if (cloudData && cloudData.length > 0) {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudData));
+                    console.log("📥 已從 Google Sheet 載入", cloudData.length, "筆資料");
+                }
+            }
+            
             renderList();
         }
-
-        // --- Rule 6b: loadData() ---
+        
+        // 讀取本地 localStorage 資料
         function loadData() {
             const data = localStorage.getItem(STORAGE_KEY);
             return data ? JSON.parse(data) : [];
         }
-
-        // --- Rule 4: ID 生成器 ---
+        
+        // 儲存單筆新資料 (localStorage + 雲端同步)
+        function saveData(newRecord) {
+            const records = loadData();
+            records.push(newRecord);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+            
+            // 雲端同步：新增
+            syncToSheet({ action: "create", record: newRecord });
+            
+            renderList();
+        }
+        
+        // ID 生成器
         function generateId() {
             return Date.now() + "_" + Math.random().toString(36).slice(2, 6);
         }
-
-        // --- 業務邏輯: 新增任務 ---
+        
+        // 新增任務
         function handleAddTask() {
             const input = document.getElementById('task-input');
             const title = input.value.trim();
             if (!title) return;
-
+            
             const newRecord = {
                 id: generateId(),
                 createdAt: new Date().toISOString(),
                 title: title,
-                status: 'active' // Rule 4: 預設 active
+                status: 'active'
             };
-
+            
             saveData(newRecord);
             input.value = '';
         }
-
-        // --- 業務邏輯: 切換狀態 (Rule 4 status toggle) ---
+        
+        // 切換狀態 (修改)
         function toggleStatus(id) {
             const records = loadData();
+            let updatedRecord = null;
+            
             const updated = records.map(r => {
                 if (r.id === id) {
-                    return { ...r, status: r.status === 'active' ? 'done' : 'active' };
+                    const newStatus = r.status === 'active' ? 'done' : 'active';
+                    updatedRecord = { ...r, status: newStatus };
+                    return updatedRecord;
                 }
                 return r;
             });
+            
             localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            
+            // 雲端同步：更新
+            if (updatedRecord) {
+                syncToSheet({ 
+                    action: "update", 
+                    id: id, 
+                    changes: { status: updatedRecord.status } 
+                });
+            }
+            
             renderList();
         }
-
-        // --- 業務邏輯: 刪除 ---
+        
+        // 刪除任務
         function deleteRecord(id) {
             const records = loadData();
             const filtered = records.filter(r => r.id !== id);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+            
+            // 雲端同步：刪除
+            syncToSheet({ action: "delete", id: id });
+            
             renderList();
         }
-
-        // --- 篩選控制 ---
+        
+        // 篩選控制
         function setFilter(type) {
             currentFilter = type;
-            // 更新 UI
             document.querySelectorAll('.filter-btn').forEach(btn => {
                 btn.classList.remove('bg-zinc-800', 'bg-orange-500', 'bg-zinc-500', 'text-white');
                 btn.classList.add('bg-white', 'text-zinc-500', 'border', 'border-zinc-100');
@@ -157,21 +241,20 @@
             if (type === 'all') activeBtn.classList.add('bg-zinc-800', 'text-white');
             if (type === 'active') activeBtn.classList.add('bg-orange-500', 'text-white');
             if (type === 'done') activeBtn.classList.add('bg-zinc-500', 'text-white');
-
+            
             renderList();
         }
-
-        // --- Rule 6c: renderList() ---
+        
+        // 渲染列表
         function renderList() {
             const listContainer = document.getElementById('task-list');
             const statsContainer = document.getElementById('stats-panel');
             const allRecords = loadData();
-
-            // 1. 計算統計 (Stretch 統計功能)
+            
             const total = allRecords.length;
             const done = allRecords.filter(r => r.status === 'done').length;
             const active = total - done;
-
+            
             statsContainer.innerHTML = `
                 <span>ACTIVE: <b class="text-orange-500">${active}</b></span>
                 <span class="text-zinc-200">|</span>
@@ -179,21 +262,18 @@
                 <span class="text-zinc-200">|</span>
                 <span>TOTAL: <b class="text-zinc-800">${total}</b></span>
             `;
-
-            // 2. 篩選與排序 (Rule 2 & Status Sorting)
+            
             let displayList = allRecords;
             if (currentFilter !== 'all') {
                 displayList = allRecords.filter(r => r.status === currentFilter);
             }
-
-            // 排序: active 在上 (0), done 在下 (1)
+            
             displayList.sort((a, b) => {
                 const aVal = a.status === 'done' ? 1 : 0;
                 const bVal = b.status === 'done' ? 1 : 0;
                 return aVal - bVal;
             });
-
-            // 3. 渲染 HTML
+            
             listContainer.innerHTML = displayList.length === 0 
                 ? '<div class="py-20 text-center text-zinc-300 text-sm italic">目前沒有任何項目...</div>'
                 : displayList.map(item => `
@@ -203,10 +283,10 @@
                         </button>
                         
                         <div class="flex-1 min-w-0">
-                            <h3 class="font-semibold truncate text-zinc-700 ${item.status === 'done' ? 'strikethrough' : ''}">${item.title}</h3>
+                            <h3 class="font-semibold truncate text-zinc-700 ${item.status === 'done' ? 'strikethrough' : ''}">${escapeHtml(item.title)}</h3>
                             <p class="text-[9px] text-zinc-400 mt-0.5 uppercase tracking-tighter">${new Date(item.createdAt).toLocaleString()}</p>
                         </div>
-
+                        
                         <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button onclick="toggleStatus('${item.id}')" class="text-[10px] font-bold text-orange-500 bg-orange-50 px-2 py-1 rounded-lg">
                                 ${item.status === 'done' ? '恢復' : '完成'}
@@ -218,10 +298,23 @@
                     </div>
                 `).join('');
         }
-
-        // 初始渲染
-        window.onload = renderList;
-
+        
+        // 簡易防 XSS 輔助函數
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+        
+        // 初始化 (先嘗試從雲端載入，若無則使用本地)
+        window.onload = function() {
+            initializeData();
+        };
+        
         // 監控 Enter 鍵
         document.getElementById('task-input').onkeydown = (e) => {
             if (e.key === 'Enter') handleAddTask();

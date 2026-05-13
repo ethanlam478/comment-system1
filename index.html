@@ -92,7 +92,7 @@
         // ==================== Google Sheet 同步 Helper ====================
         async function syncToSheet(payload) {
             // 如果 URL 還是 placeholder，就不要送出
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "PASTE_YOUR_APPS_SCRIPT_URL_HERE") {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "https://script.google.com/macros/s/AKfycbzhQRUMZb8a2sKUisRS81oyJLSA3tumQWyr6N6Pmq4Oxr3uUfG0Qmtijyc1nsgPgnw6/exec") {
                 console.warn("⚠️ Google Sheet URL 尚未設定，跳過同步");
                 return;
             }
@@ -115,7 +115,7 @@
         
         // 從雲端載入所有資料 (用於初次載入或手動還原)
         async function loadFromCloud() {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "PASTE_YOUR_APPS_SCRIPT_URL_HERE") {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "https://script.google.com/macros/s/AKfycbzhQRUMZb8a2sKUisRS81oyJLSA3tumQWyr6N6Pmq4Oxr3uUfG0Qmtijyc1nsgPgnw6/exec") {
                 console.warn("⚠️ Google Sheet URL 尚未設定，無法從雲端載入");
                 return null;
             }

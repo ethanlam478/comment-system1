@@ -87,17 +87,17 @@
         const STORAGE_KEY = 'records';
         
         // ⚠️ 重要：請將下方的 URL 換成您部署 Google Apps Script 後取得的網頁應用程式 URL
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwE1W2-C1mw5yMdQsVf-HITTdORA7VbQfqJ7ZvE5JQP4e42D-AhMF1jDZE94IlwQbsE/exec"; // <-- 請貼上您的 Web App URL
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx4FGZYRfY_Bn8iWyyfuXr6rrAOy-zbOwvNhZj0TDC2lFedGJXoFobHbq3TAbJbQ8Gq/exec"; // <-- 請貼上您的 Web App URL
         
         // ==================== Google Sheet 同步 Helper ====================
         async function syncToSheet(payload) {
-            // 如果 URL 還是 placeholder，就不要送出
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "https://script.google.com/macros/s/AKfycbwE1W2-C1mw5yMdQsVf-HITTdORA7VbQfqJ7ZvE5JQP4e42D-AhMF1jDZE94IlwQbsE/exec") {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "https://script.google.com/macros/s/AKfycbx4FGZYRfY_Bn8iWyyfuXr6rrAOy-zbOwvNhZj0TDC2lFedGJXoFobHbq3TAbJbQ8Gq/exec") {
                 console.warn("⚠️ Google Sheet URL 尚未設定，跳過同步");
                 return;
             }
             
             try {
+                console.log("🔄 同步到 Google Sheet:", payload);
                 const response = await fetch(APPS_SCRIPT_URL, {
                     method: "POST",
                     headers: { "Content-Type": "text/plain" },
@@ -113,22 +113,28 @@
         
         // ==================== 核心變量與函數 ====================
         
-        // 從雲端載入所有資料 (用於初次載入或手動還原)
+        // 從雲端載入所有資料
         async function loadFromCloud() {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "https://script.google.com/macros/s/AKfycbwE1W2-C1mw5yMdQsVf-HITTdORA7VbQfqJ7ZvE5JQP4e42D-AhMF1jDZE94IlwQbsE/exec") {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "https://script.google.com/macros/s/AKfycbx4FGZYRfY_Bn8iWyyfuXr6rrAOy-zbOwvNhZj0TDC2lFedGJXoFobHbq3TAbJbQ8Gq/exec") {
                 console.warn("⚠️ Google Sheet URL 尚未設定，無法從雲端載入");
                 return null;
             }
             
             try {
+                console.log("🔄 正在從 Google Sheet 載入資料...");
                 const response = await fetch(APPS_SCRIPT_URL);
                 const result = await response.json();
+                
+                console.log("📡 Google Sheet 回應:", result);
+                
                 if (result.status === "success" && result.records) {
                     return result.records;
+                } else {
+                    console.warn("⚠️ 雲端回應異常:", result);
+                    return null;
                 }
-                return null;
             } catch(error) {
-                console.warn("⚠️ 從 Google Sheet 載入失敗:", error);
+                console.error("❌ 從 Google Sheet 載入失敗:", error);
                 return null;
             }
         }
@@ -142,10 +148,12 @@
                 if (cloudData && cloudData.length > 0) {
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudData));
                     console.log("📥 已從 Google Sheet 載入", cloudData.length, "筆資料");
+                    renderList();  // ✅ 雲端資料回來後重新渲染
+                    return;
                 }
             }
             
-            renderList();
+            renderList();  // 本地有資料或雲端無資料時渲染
         }
         
         // 讀取本地 localStorage 資料
@@ -320,5 +328,7 @@
             if (e.key === 'Enter') handleAddTask();
         };
     </script>
+</body>
+</html>
 </body>
 </html>

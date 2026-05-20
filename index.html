@@ -87,11 +87,11 @@
         const STORAGE_KEY = 'records';
         
         // ⚠️ 重要：請將下方的 URL 換成您部署 Google Apps Script 後取得的網頁應用程式 URL
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/library/d/1I0Di1EuEcgk9J4ppwjfF4jmPvS9MrWS2BWEFjnCwWVAVUche_MSLyveq/3"; // <-- 請貼上您的 Web App URL
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx4FGZYRfY_Bn8iWyyfuXr6rrAOy-zbOwvNhZj0TDC2lFedGJXoFobHbq3TAbJbQ8Gq/exec"; // <-- 請貼上您的 Web App URL
         
         // ==================== Google Sheet 同步 Helper ====================
         async function syncToSheet(payload) {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "https://script.google.com/macros/library/d/1I0Di1EuEcgk9J4ppwjfF4jmPvS9MrWS2BWEFjnCwWVAVUche_MSLyveq/3") {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "PASTE_YOUR_APPS_SCRIPT_URL_HERE") {
                 console.warn("⚠️ Google Sheet URL 尚未設定，跳過同步");
                 return;
             }
@@ -115,7 +115,7 @@
         
         // 從雲端載入所有資料
         async function loadFromCloud() {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "https://script.google.com/macros/library/d/1I0Di1EuEcgk9J4ppwjfF4jmPvS9MrWS2BWEFjnCwWVAVUche_MSLyveq/3") {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "PASTE_YOUR_APPS_SCRIPT_URL_HERE") {
                 console.warn("⚠️ Google Sheet URL 尚未設定，無法從雲端載入");
                 return null;
             }
@@ -328,7 +328,5 @@
             if (e.key === 'Enter') handleAddTask();
         };
     </script>
-</body>
-</html>
 </body>
 </html>

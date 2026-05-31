@@ -1,758 +1,388 @@
 <!DOCTYPE html>
-
 <html lang="zh-TW">
-
 <head>
-
     <meta charset="UTF-8">
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>純 HTML 任務管理系統 - V2 版 (Google Sheet 同步版)</title>
-
+    <title>純 HTML 任務管理系統 - V2 版 (AI 擴充 + Google Sheet 同步版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
-
-    <script src="https://unpkg.com/lucide@latest"></script>
-
     <script>
-
         tailwind.config = {
-
             theme: {
-
                 extend: {
-
                     colors: {
-
                         orange: {
-
                             50: '#fff7ed',
-
                             100: '#ffedd5',
-
                             500: '#f97316',
-
                             600: '#ea580c',
-
                         }
-
                     }
-
                 }
-
             }
-
         }
-
     </script>
-
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
     <style>
-
         body { font-family: 'Inter', sans-serif; }
-
         .done-item { filter: grayscale(0.9); opacity: 0.6; }
-
         .strikethrough { text-decoration: line-through; color: #94a3b8; }
-
         .no-scrollbar::-webkit-scrollbar { display: none; }
-
     </style>
-
 </head>
-
 <body class="bg-zinc-50 min-h-screen text-zinc-900 selection:bg-orange-500/30">
 
-
-
     <div class="max-w-2xl mx-auto px-4 py-12">
-
         <header class="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
-
             <div>
-
                 <h1 class="text-3xl font-bold tracking-tight text-zinc-900 flex items-center gap-2">
-
                     <span class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white text-lg">✓</span>
-
-                    極簡任務管理 <span class="text-sm font-normal text-zinc-400 ml-2">Simple HTML v2</span>
-
+                    極簡任務管理 <span class="text-sm font-normal text-zinc-400 ml-2">Simple HTML v2 + AI</span>
                 </h1>
-
-                <p class="text-zinc-500 mt-1">本地持久化存儲版本 + Google Sheet 雲端備份</p>
-
+                <p class="text-zinc-500 mt-1">本地持久化存儲 + Google Sheet 同步 + Gemini AI</p>
             </div>
-
             
-
-            <div class="flex items-center gap-3">
-
-                <button onclick="handleAISummary()" id="aiBtn" class="flex items-center gap-2 bg-zinc-800 text-zinc-100 px-4 py-2 rounded-full font-medium hover:bg-zinc-700 transition-colors active:scale-95 border border-zinc-700 disabled:opacity-50">
-
-                    <i data-lucide="sparkles" class="w-4 h-4"></i>
-
-                    <span id="aiBtnText">AI 摘要</span>
-
-                </button>
-
-                
-
-                <button class="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-full font-medium hover:bg-orange-600 transition-colors shadow-lg shadow-orange-500/20">
-
-                    <i data-lucide="message-square-plus" class="w-4 h-4"></i>
-
-                    我要吐槽
-
-                </button>
-
-            </div>
-
+            <div id="stats-panel" class="text-[11px] font-mono text-zinc-400 bg-white px-3 py-2 rounded-xl shadow-sm border border-zinc-100 flex gap-3">
+                </div>
         </header>
 
-
-
-        <div class="bg-white p-2 rounded-2xl shadow-sm border border-zinc-100 flex gap-2 mb-8 ring-offset-2 focus-within:ring-2 focus-within:ring-orange-500 transition-all">
-
+        <div class="bg-white p-2 rounded-2xl shadow-sm border border-zinc-100 flex gap-2 mb-4 ring-offset-2 focus-within:ring-2 focus-within:ring-orange-500 transition-all">
             <input 
-
                 type="text" 
-
                 id="task-input" 
-
-                placeholder="你想完成什麼 / 有咩想吐槽？" 
-
+                placeholder="你想完成什麼？或者問問 AI..." 
                 class="flex-1 px-4 py-3 outline-none text-zinc-700 bg-transparent"
-
             >
-
             <button 
-
                 onclick="handleAddTask()"
-
-                class="bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 py-2 rounded-xl transition-colors shadow-lg shadow-orange-500/20"
-
+                class="bg-orange-500 hover:bg-orange-600 text-white font-bold px-4 py-2 rounded-xl transition-colors shadow-lg shadow-orange-500/20"
             >
-
-                添加
-
+                添加任務
             </button>
-
+            <button 
+                onclick="handleAskAI()"
+                class="bg-zinc-800 hover:bg-zinc-900 text-white font-bold px-4 py-2 rounded-xl transition-colors shadow-lg"
+            >
+                問 AI ✨
+            </button>
         </div>
 
-
+        <div id="ai-response-panel" class="hidden mb-8 p-4 bg-orange-50 rounded-2xl border border-orange-100 text-sm text-zinc-700 leading-relaxed shadow-inner transition-all">
+            <div class="flex items-center gap-2 mb-2 font-bold text-orange-600">
+                <span>✨ AI 助理回覆：</span>
+                <span id="ai-loading" class="hidden text-xs font-normal animate-pulse text-orange-400">思考中...</span>
+            </div>
+            <div id="ai-response-content" class="whitespace-pre-wrap"></div>
+        </div>
 
         <div class="flex items-center justify-between mb-6">
-
             <div class="flex gap-1 overflow-x-auto no-scrollbar py-1">
-
                 <button onclick="setFilter('all')" id="btn-filter-all" class="filter-btn px-4 py-1.5 rounded-full text-xs font-bold transition-all bg-zinc-800 text-white">全部</button>
-
                 <button onclick="setFilter('active')" id="btn-filter-active" class="filter-btn px-4 py-1.5 rounded-full text-xs font-bold transition-all bg-white text-zinc-500 border border-zinc-100 hover:border-orange-200">進行中</button>
-
                 <button onclick="setFilter('done')" id="btn-filter-done" class="filter-btn px-4 py-1.5 rounded-full text-xs font-bold transition-all bg-white text-zinc-500 border border-zinc-100 hover:border-orange-200">已完成</button>
-
             </div>
-
-            
-
-            <div id="stats-panel" class="text-[11px] font-mono text-zinc-400 bg-white px-3 py-2 rounded-xl shadow-sm border border-zinc-100 flex gap-3">
-
-                </div>
-
+            <span class="text-[10px] text-zinc-300 font-medium uppercase tracking-widest">List View</span>
         </div>
 
-
-
         <div id="task-list" class="space-y-3">
-
             </div>
-
     </div>
 
-
-
     <script>
-
         // ==================== 組態區 ====================
-
         let currentFilter = 'all';
-
         const STORAGE_KEY = 'records';
-
         
-
-        // 保留原值，絕不改動
-
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx4FGZYRfY_Bn8iWyyfuXr6rrAOy-zbOwvNhZj0TDC2lFedGJXoFobHbq3TAbJbQ8Gq/exec";
-
+        // ⚠️ 重要：請將下方的 URL 換成您部署 Google Apps Script 後取得的網頁應用程式 URL
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzYZTIhTVfHl7fcyleSRnJtbyYr5m9NcPoE3Cxy_AGXBwrKIBsGLXjVu-6-_CC0RX6N/exec"; // <-- 請貼上您的 Web App URL
         
-
-        // ==================== Google Sheet 同步 & AI Helper ====================
-
-        async function syncToSheet(payload) {
-
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("PASTE")) return;
-
-            try {
-
-                fetch(APPS_SCRIPT_URL, {
-
-                    method: "POST",
-
-                    headers: { "Content-Type": "text/plain" },
-
-                    body: JSON.stringify(payload)
-
-                }).catch(e => console.warn("Background sync error:", e));
-
-            } catch(error) {
-
-                console.warn("⚠️ Google Sheet 同步失敗:", error);
-
-            }
-
-        }
-
-
-
-        function normalizeRecord(record) {
-
-            return {
-
-                id: record.id || record.ID || "",
-
-                createdAt: record.createdAt || record.CreatedAt || "",
-
-                content: record.content || record.Content || record.title || "", // 兼容舊 title
-
-                category: record.category || record.Category || "其他",
-
-                likes: Number(record.likes !== undefined ? record.likes : (record.Likes || 0)),
-
-                status: record.status || record.Status || "active"
-
-            };
-
-        }
-
-
-
-        async function fetchRecordsFromSheet() {
-
-            if (APPS_SCRIPT_URL.includes("PASTE")) return null;
-
-            try {
-
-                const res = await fetch(APPS_SCRIPT_URL);
-
-                const data = await res.json();
-
-                return Array.isArray(data.records) ? data.records.map(normalizeRecord) : null;
-
-            } catch (e) {
-
-                console.warn("從 Sheet 讀取失敗", e);
-
-                return null;
-
-            }
-
-        }
-
-
-
-        async function askAI(userPrompt) {
-
-            const res = await fetch(APPS_SCRIPT_URL, {
-
-                method: "POST",
-
-                headers: { "Content-Type": "text/plain" },
-
-                body: JSON.stringify({ action: "askAI", prompt: userPrompt })
-
-            });
-
-            const data = await res.json();
-
-            return data.result || data.error || "AI 冇回應";
-
-        }
-
-
-
-        async function handleAISummary() {
-
-            const btn = document.getElementById('aiBtn');
-
-            const text = document.getElementById('aiBtnText');
-
-            btn.disabled = true;
-
-            text.textContent = '思考中...';
-
-            try {
-
-                const records = await loadData();
-
-                if (records.length === 0) { alert('未有吐槽資料可以摘要'); return; }
-
-                const summaryInput = records.slice(0, 30).map(r =>
-
-                    `[${r.category}] ${r.content}`
-
-                ).join('\n');
-
-                const prompt = '以下是班級吐槽牆嘅留言。請用繁體中文，用 3-5 句概括同學最關心嘅問題、情緒同有冇明顯 patterns:\n\n' + summaryInput;
-
-                const result = await askAI(prompt);
-
-                alert(result);
-
-            } catch (e) {
-
-                alert('AI 出錯：' + e.message);
-
-            } finally {
-
-                btn.disabled = false;
-
-                text.textContent = 'AI 摘要';
-
-            }
-
-        }
-
-        
-
-        // ==================== 核心變量與函數 ====================
-
-        
-
-        // 非同步讀取本地/雲端資料
-
-        async function loadData() {
-
-            const remote = await fetchRecordsFromSheet();
-
-            if (remote) {
-
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(remote));
-
-                return remote;
-
-            }
-
-            const data = localStorage.getItem(STORAGE_KEY);
-
-            return data ? JSON.parse(data) : [];
-
-        }
-
-        
-
-        // 儲存單筆新資料 (先推入本機即時渲染，再雲端同步)
-
-        async function saveData(newRecord) {
-
-            const records = await loadData();
-
-            records.push(newRecord);
-
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-
-            syncToSheet({ action: "create", record: newRecord });
-
-            await renderList(records);
-
-        }
-
-        
-
-        function generateId() {
-
-            return Date.now() + "_" + Math.random().toString(36).slice(2, 6);
-
-        }
-
-        
-
-        // 新增任務 / 吐槽
-
-        async function handleAddTask() {
-
+        // ==================== AI 代理 Helper ====================
+        async function handleAskAI() {
             const input = document.getElementById('task-input');
+            const prompt = input.value.trim();
+            if (!prompt) return;
 
-            const content = input.value.trim();
+            const aiPanel = document.getElementById('ai-response-panel');
+            const aiContent = document.getElementById('ai-response-content');
+            const aiLoading = document.getElementById('ai-loading');
 
-            if (!content) return;
+            // 展開 AI 面板並顯示 Loading 狀態
+            aiPanel.classList.remove('hidden');
+            aiContent.innerHTML = '';
+            aiLoading.classList.remove('hidden');
 
-            
-
-            const newRecord = {
-
-                id: generateId(),
-
-                createdAt: new Date().toISOString(),
-
-                content: content,
-
-                category: "其他", // 預設類別
-
-                likes: 0,
-
-                status: 'active'
-
-            };
-
-            
-
-            await saveData(newRecord);
-
-            input.value = '';
-
-        }
-
-        
-
-        // 按讚功能
-
-        async function handleLike(id) {
-
-            const records = await loadData();
-
-            const index = records.findIndex(r => r.id === id);
-
-            if (index !== -1) {
-
-                records[index].likes = (records[index].likes || 0) + 1;
-
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-
-                syncToSheet({ action: "update", id: id, changes: { likes: records[index].likes } });
-
-                await renderList(records);
-
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "PASTE_YOUR_APPS_SCRIPT_URL_HERE") {
+                aiLoading.classList.add('hidden');
+                aiContent.innerHTML = '<span class="text-red-500">⚠️ 請先設定 APPS_SCRIPT_URL</span>';
+                return;
             }
 
-        }
-
-        
-
-        // 切換狀態
-
-        async function toggleStatus(id) {
-
-            const records = await loadData();
-
-            let updatedRecord = null;
-
-            
-
-            const updated = records.map(r => {
-
-                if (r.id === id) {
-
-                    const newStatus = r.status === 'active' ? 'done' : 'active';
-
-                    updatedRecord = { ...r, status: newStatus };
-
-                    return updatedRecord;
-
-                }
-
-                return r;
-
-            });
-
-            
-
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-
-            
-
-            if (updatedRecord) {
-
-                syncToSheet({ 
-
-                    action: "update", 
-
-                    id: id, 
-
-                    changes: { status: updatedRecord.status } 
-
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain" },
+                    body: JSON.stringify({ action: "askAI", prompt: prompt })
                 });
-
-            }
-
-            await renderList(updated);
-
-        }
-
-        
-
-        // 刪除紀錄
-
-        async function deleteRecord(id) {
-
-            const records = await loadData();
-
-            const filtered = records.filter(r => r.id !== id);
-
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-
-            
-
-            syncToSheet({ action: "delete", id: id });
-
-            await renderList(filtered);
-
-        }
-
-        
-
-        // 篩選控制
-
-        async function setFilter(type) {
-
-            currentFilter = type;
-
-            document.querySelectorAll('.filter-btn').forEach(btn => {
-
-                btn.classList.remove('bg-zinc-800', 'bg-orange-500', 'bg-zinc-500', 'text-white');
-
-                btn.classList.add('bg-white', 'text-zinc-500', 'border', 'border-zinc-100');
-
-            });
-
-            
-
-            const activeBtn = document.getElementById(`btn-filter-${type}`);
-
-            if (activeBtn) {
-
-                activeBtn.classList.remove('bg-white', 'text-zinc-500', 'border');
-
-                if (type === 'all') activeBtn.classList.add('bg-zinc-800', 'text-white');
-
-                if (type === 'active') activeBtn.classList.add('bg-orange-500', 'text-white');
-
-                if (type === 'done') activeBtn.classList.add('bg-zinc-500', 'text-white');
-
-            }
-
-            
-
-            await renderList();
-
-        }
-
-
-
-        // 產生單張卡片 HTML (結合 Like, Content, Category 等功能)
-
-        function createCard(item) {
-
-            return `
-
-            <div class="group bg-white p-4 rounded-2xl border border-zinc-100 shadow-sm flex flex-col md:flex-row md:items-center gap-4 transition-all hover:shadow-md ${item.status === 'done' ? 'done-item' : ''}">
-
-                <div class="flex items-center gap-4 flex-1 min-w-0">
-
-                    <button onclick="toggleStatus('${item.id}')" class="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${item.status === 'done' ? 'bg-green-500 border-green-500 text-white' : 'border-zinc-200 hover:border-orange-500'}">
-
-                        ${item.status === 'done' ? '✓' : ''}
-
-                    </button>
-
-                    
-
-                    <div class="flex-1 min-w-0">
-
-                        <div class="flex items-center gap-2 mb-1">
-
-                            <span class="text-[10px] bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-full font-medium">${escapeHtml(item.category)}</span>
-
-                        </div>
-
-                        <h3 class="font-semibold text-zinc-700 ${item.status === 'done' ? 'strikethrough' : ''}">${escapeHtml(item.content)}</h3>
-
-                        <p class="text-[9px] text-zinc-400 mt-0.5 uppercase tracking-tighter">${new Date(item.createdAt).toLocaleString()}</p>
-
-                    </div>
-
-                </div>
-
                 
-
-                <div class="flex items-center gap-4 justify-between md:justify-end mt-2 md:mt-0">
-
-                    <button onclick="handleLike('${item.id}')" class="flex items-center gap-1.5 text-zinc-400 hover:text-orange-500 transition-colors">
-
-                        <i data-lucide="heart" class="w-4 h-4 ${item.likes > 0 ? 'fill-orange-500 text-orange-500' : ''}"></i>
-
-                        <span class="text-xs font-bold">${item.likes || 0}</span>
-
-                    </button>
-
-                    <div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
-
-                        <button onclick="toggleStatus('${item.id}')" class="text-[10px] font-bold text-orange-500 bg-orange-50 px-2 py-1 rounded-lg">
-
-                            ${item.status === 'done' ? '恢復' : '完成'}
-
-                        </button>
-
-                        <button onclick="deleteRecord('${item.id}')" class="text-[10px] font-bold text-red-400 hover:text-red-500 px-2 py-1">
-
-                            刪除
-
-                        </button>
-
-                    </div>
-
-                </div>
-
-            </div>`;
-
+                const result = await response.json();
+                aiLoading.classList.add('hidden');
+                
+                if (result.result) {
+                    // 將換行符號轉換為 <br> 以便在 HTML 顯示
+                    aiContent.innerHTML = escapeHtml(result.result).replace(/\n/g, '<br>');
+                } else if (result.error) {
+                    aiContent.innerHTML = `<span class="text-red-500">❌ AI 錯誤：${result.error}</span>`;
+                }
+            } catch(error) {
+                aiLoading.classList.add('hidden');
+                aiContent.innerHTML = `<span class="text-red-500">❌ 連線失敗，請檢查網路或 Google Sheet URL。</span>`;
+                console.error("AI 請求失敗:", error);
+            }
         }
 
+        // ==================== Google Sheet 同步 Helper ====================
+        async function syncToSheet(payload) {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "PASTE_YOUR_APPS_SCRIPT_URL_HERE") {
+                console.warn("⚠️ Google Sheet URL 尚未設定，跳過同步");
+                return;
+            }
+            
+            try {
+                console.log("🔄 同步到 Google Sheet:", payload);
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain" },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                console.log("✅ Google Sheet 同步成功:", result);
+            } catch(error) {
+                console.warn("⚠️ Google Sheet 同步失敗 (不影響本機操作):", error);
+            }
+        }
         
-
+        // ==================== 核心變量與函數 ====================
+        
+        // 從雲端載入所有資料
+        async function loadFromCloud() {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "PASTE_YOUR_APPS_SCRIPT_URL_HERE") {
+                console.warn("⚠️ Google Sheet URL 尚未設定，無法從雲端載入");
+                return null;
+            }
+            
+            try {
+                console.log("🔄 正在從 Google Sheet 載入資料...");
+                const response = await fetch(APPS_SCRIPT_URL);
+                const result = await response.json();
+                
+                console.log("📡 Google Sheet 回應:", result);
+                
+                if (result.status === "success" && result.records) {
+                    return result.records;
+                } else {
+                    console.warn("⚠️ 雲端回應異常:", result);
+                    return null;
+                }
+            } catch(error) {
+                console.error("❌ 從 Google Sheet 載入失敗:", error);
+                return null;
+            }
+        }
+        
+        // 初次載入時，若本地無資料則嘗試從雲端載入
+        async function initializeData() {
+            let localData = loadData();
+            
+            if (localData.length === 0) {
+                const cloudData = await loadFromCloud();
+                if (cloudData && cloudData.length > 0) {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudData));
+                    console.log("📥 已從 Google Sheet 載入", cloudData.length, "筆資料");
+                    renderList();  // ✅ 雲端資料回來後重新渲染
+                    return;
+                }
+            }
+            
+            renderList();  // 本地有資料或雲端無資料時渲染
+        }
+        
+        // 讀取本地 localStorage 資料
+        function loadData() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            return data ? JSON.parse(data) : [];
+        }
+        
+        // 儲存單筆新資料 (localStorage + 雲端同步)
+        function saveData(newRecord) {
+            const records = loadData();
+            records.push(newRecord);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+            
+            // 雲端同步：新增
+            syncToSheet({ action: "create", record: newRecord });
+            
+            renderList();
+        }
+        
+        // ID 生成器
+        function generateId() {
+            return Date.now() + "_" + Math.random().toString(36).slice(2, 6);
+        }
+        
+        // 新增任務
+        function handleAddTask() {
+            const input = document.getElementById('task-input');
+            const title = input.value.trim();
+            if (!title) return;
+            
+            const newRecord = {
+                id: generateId(),
+                createdAt: new Date().toISOString(),
+                title: title,
+                status: 'active'
+            };
+            
+            saveData(newRecord);
+            input.value = '';
+            
+            // 隱藏 AI 面板 (如果有打開的話)
+            document.getElementById('ai-response-panel').classList.add('hidden');
+        }
+        
+        // 切換狀態 (修改)
+        function toggleStatus(id) {
+            const records = loadData();
+            let updatedRecord = null;
+            
+            const updated = records.map(r => {
+                if (r.id === id) {
+                    const newStatus = r.status === 'active' ? 'done' : 'active';
+                    updatedRecord = { ...r, status: newStatus };
+                    return updatedRecord;
+                }
+                return r;
+            });
+            
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            
+            // 雲端同步：更新
+            if (updatedRecord) {
+                syncToSheet({ 
+                    action: "update", 
+                    id: id, 
+                    changes: { status: updatedRecord.status } 
+                });
+            }
+            
+            renderList();
+        }
+        
+        // 刪除任務
+        function deleteRecord(id) {
+            const records = loadData();
+            const filtered = records.filter(r => r.id !== id);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+            
+            // 雲端同步：刪除
+            syncToSheet({ action: "delete", id: id });
+            
+            renderList();
+        }
+        
+        // 篩選控制
+        function setFilter(type) {
+            currentFilter = type;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('bg-zinc-800', 'bg-orange-500', 'bg-zinc-500', 'text-white');
+                btn.classList.add('bg-white', 'text-zinc-500', 'border', 'border-zinc-100');
+            });
+            
+            const activeBtn = document.getElementById(`btn-filter-${type}`);
+            activeBtn.classList.remove('bg-white', 'text-zinc-500', 'border');
+            if (type === 'all') activeBtn.classList.add('bg-zinc-800', 'text-white');
+            if (type === 'active') activeBtn.classList.add('bg-orange-500', 'text-white');
+            if (type === 'done') activeBtn.classList.add('bg-zinc-500', 'text-white');
+            
+            renderList();
+        }
+        
         // 渲染列表
-
-        async function renderList(recordsOverride) {
-
+        function renderList() {
             const listContainer = document.getElementById('task-list');
-
             const statsContainer = document.getElementById('stats-panel');
-
+            const allRecords = loadData();
             
-
-            // 如果有 recordsOverride 傳入，即時用本機最新數據；否則就 await loadData() 抓遠端/本機資料
-
-            const allRecords = recordsOverride || await loadData();
-
-            
-
             const total = allRecords.length;
-
             const done = allRecords.filter(r => r.status === 'done').length;
-
             const active = total - done;
-
             
-
-            if(statsContainer) {
-
-                statsContainer.innerHTML = `
-
-                    <span>ACTIVE: <b class="text-orange-500">${active}</b></span>
-
-                    <span class="text-zinc-200">|</span>
-
-                    <span>DONE: <b class="text-zinc-500">${done}</b></span>
-
-                    <span class="text-zinc-200">|</span>
-
-                    <span>TOTAL: <b class="text-zinc-800">${total}</b></span>
-
-                `;
-
-            }
-
+            statsContainer.innerHTML = `
+                <span>ACTIVE: <b class="text-orange-500">${active}</b></span>
+                <span class="text-zinc-200">|</span>
+                <span>DONE: <b class="text-zinc-500">${done}</b></span>
+                <span class="text-zinc-200">|</span>
+                <span>TOTAL: <b class="text-zinc-800">${total}</b></span>
+            `;
             
-
             let displayList = allRecords;
-
             if (currentFilter !== 'all') {
-
                 displayList = allRecords.filter(r => r.status === currentFilter);
-
             }
-
             
-
             displayList.sort((a, b) => {
-
                 const aVal = a.status === 'done' ? 1 : 0;
-
                 const bVal = b.status === 'done' ? 1 : 0;
-
                 return aVal - bVal;
-
             });
-
             
-
             listContainer.innerHTML = displayList.length === 0 
-
                 ? '<div class="py-20 text-center text-zinc-300 text-sm italic">目前沒有任何項目...</div>'
-
-                : displayList.map(item => createCard(item)).join('');
-
-            
-
-            // 重新初始化 Lucide Icons (針對剛渲染嘅 HTML)
-
-            if (window.lucide) {
-
-                lucide.createIcons();
-
-            }
-
+                : displayList.map(item => `
+                    <div class="group bg-white p-4 rounded-2xl border border-zinc-100 shadow-sm flex items-center gap-4 transition-all hover:shadow-md ${item.status === 'done' ? 'done-item' : ''}">
+                        <button onclick="toggleStatus('${item.id}')" class="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${item.status === 'done' ? 'bg-green-500 border-green-500 text-white' : 'border-zinc-200 hover:border-orange-500'}">
+                            ${item.status === 'done' ? '✓' : ''}
+                        </button>
+                        
+                        <div class="flex-1 min-w-0">
+                            <h3 class="font-semibold truncate text-zinc-700 ${item.status === 'done' ? 'strikethrough' : ''}">${escapeHtml(item.title)}</h3>
+                            <p class="text-[9px] text-zinc-400 mt-0.5 uppercase tracking-tighter">${new Date(item.createdAt).toLocaleString()}</p>
+                        </div>
+                        
+                        <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onclick="toggleStatus('${item.id}')" class="text-[10px] font-bold text-orange-500 bg-orange-50 px-2 py-1 rounded-lg">
+                                ${item.status === 'done' ? '恢復' : '完成'}
+                            </button>
+                            <button onclick="deleteRecord('${item.id}')" class="text-[10px] font-bold text-red-400 hover:text-red-500 px-2 py-1">
+                                刪除
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
         }
-
         
-
-        // 防 XSS
-
+        // 簡易防 XSS 輔助函數
         function escapeHtml(str) {
-
             if (!str) return '';
-
-            return String(str).replace(/[&<>]/g, function(m) {
-
+            return str.replace(/[&<>]/g, function(m) {
                 if (m === '&') return '&amp;';
-
                 if (m === '<') return '&lt;';
-
                 if (m === '>') return '&gt;';
-
                 return m;
-
             });
-
         }
-
         
-
-        // 簡化 window.onload，無需手動 fetchRecordsFromSheet
-
-        window.onload = async () => {
-
-            await renderList();
-
-            if (window.lucide) {
-
-                lucide.createIcons();
-
-            }
-
+        // 初始化 (先嘗試從雲端載入，若無則使用本地)
+        window.onload = function() {
+            initializeData();
         };
-
         
-
-        // 監控 Enter 鍵
-
+        // 監控 Enter 鍵 (預設行為改為問 AI 或加任務，視乎需求，此處維持加任務)
         document.getElementById('task-input').onkeydown = (e) => {
-
-            if (e.key === 'Enter') handleAddTask();
-
+            if (e.key === 'Enter') {
+                // 如果想要 Enter 預設是問 AI，可以改成 handleAskAI()
+                handleAddTask();
+            }
         };
-
     </script>
 </body>
-
 </html>
